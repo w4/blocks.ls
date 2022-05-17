@@ -1,0 +1,15 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+body {
+  @apply bg-gray-900;
+}
+
+a {
+  @apply text-sky-400 transition-all;
+
+  &:hover {
+    @apply text-sky-600;
+  }
+}

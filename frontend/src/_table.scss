@@ -1,0 +1,34 @@
+table {
+  @apply border-collapse table-auto w-full;
+
+  thead th {
+    @apply border-b border-slate-600 font-medium p-4 pl-8 pt-0 pb-3 text-slate-200 text-left uppercase;
+  }
+
+  tbody {
+    tr {
+      td {
+        @apply text-slate-400;
+      }
+
+      td,
+      th {
+        @apply border-b border-slate-700 p-4 pl-8 text-left font-normal;
+      }
+
+      &:hover {
+        td,
+        th {
+          @apply bg-gray-900/40;
+        }
+      }
+
+      &:last-of-type {
+        td,
+        th {
+          border-bottom: none;
+        }
+      }
+    }
+  }
+}

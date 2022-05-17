@@ -1,0 +1,8 @@
+section {
+  max-width: 90rem; /* todo: max-w-8xl */
+  @apply mt-8 mx-auto bg-gray-800 rounded text-slate-200;
+}
+
+section h2 {
+  @apply text-2xl p-8;
+}

@@ -1,0 +1,29 @@
+{
+  "site_name": "blocks.ls",
+  "nav": {
+    "dashboard": "Dashboard",
+    "blocks": "Blocks",
+    "txns": "Transactions"
+  },
+  "home": {
+    "latest_blocks": {
+      "header": "Latest Blocks",
+      "table": {
+        "height": "Height",
+        "timestamp": "Timestamp",
+        "txns": "Transactions",
+        "size": "Size (KB)",
+        "weight": "Weight (KWU)"
+      }
+    },
+    "latest_txns": {
+      "header": "Latest Transactions",
+      "table": {
+        "txn_id": "Transaction ID",
+        "value": "Value",
+        "size": "Size",
+        "fee": "Fee"
+      }
+    }
+  }
+}
