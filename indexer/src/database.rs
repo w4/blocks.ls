@@ -1,7 +1,6 @@
 use crate::DatabaseConfig;
 use deadpool_postgres::{Config, CreatePoolError, ManagerConfig, RecyclingMethod, Runtime};
 use refinery::embed_migrations;
-use serde::Deserialize;
 use std::{ops::Deref, sync::Arc};
 use tokio_postgres::NoTls;
 

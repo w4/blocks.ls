@@ -17,7 +17,7 @@ CREATE TABLE blocks (
 
 CREATE TABLE transactions (
     id BIGINT PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
-    hash BYTEA NOT NULL,
+    hash BYTEA UNIQUE NOT NULL,
     block_id BIGINT,
     version INT NOT NULL,
     lock_time INT NOT NULL,
@@ -42,6 +42,7 @@ CREATE TABLE transaction_outputs (
             REFERENCES transactions(id)
 );
 
+CREATE INDEX transaction_outputs_txid_index ON transaction_outputs (transaction_id, index);
 
 CREATE TABLE transaction_inputs (
     id BIGINT PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
