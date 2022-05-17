@@ -1,0 +1,12 @@
+bitcoin-rpc-address = "127.0.0.1:8332"
+
+[bitcoin-rpc]
+address = "127.0.0.1:8332"
+username = "__cookie__"
+password = "0000000000000000000000000000000000000000000000000000000000000000000000"
+
+[database]
+user = "postgres"
+password = "postgres"
+host = "127.0.0.1"
+database = "postgres"
