@@ -1,5 +1,6 @@
 use crate::database::{Connection, Result};
-use serde::Deserialize;
+use serde::{Deserialize, Deserializer};
+use serde::de::Error;
 use tokio::time::Instant;
 use tokio_postgres::types::Json;
 use tokio_postgres::Row;
@@ -34,15 +35,24 @@ impl Transaction {
 #[derive(Deserialize, Debug)]
 pub struct TransactionInput {
     pub previous_output_tx: Option<TransactionOutput>,
+    #[serde(deserialize_with = "trim_hex_prefix")]
     pub script: String,
 }
 
 #[derive(Deserialize, Debug)]
 pub struct TransactionOutput {
     pub value: i64,
+    #[serde(deserialize_with = "trim_hex_prefix")]
     pub script: String,
     pub unspendable: bool,
     pub address: Option<String>,
+}
+
+fn trim_hex_prefix<'de, D: Deserializer<'de>>(deserializer: D) -> std::result::Result<String, D::Error> {
+    let mut s = String::deserialize(deserializer)?;
+    s.remove(0);
+    s.remove(0);
+    Ok(s)
 }
 
 pub async fn fetch_transactions_for_block(db: &Connection, id: i64) -> Result<Vec<Transaction>> {

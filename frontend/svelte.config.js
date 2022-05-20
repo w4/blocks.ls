@@ -10,6 +10,7 @@ const config = {
   }),
 
   kit: {
+    // TODO: adapter-cloudflare
     adapter: adapter(),
   },
 };

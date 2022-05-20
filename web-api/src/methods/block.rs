@@ -1,8 +1,47 @@
+use std::ptr::hash;
 use crate::Database;
 use axum::extract::Path;
 use axum::{Extension, Json};
 use chrono::NaiveDateTime;
 use serde::Serialize;
+
+#[derive(Serialize)]
+pub struct BlockList {
+    hash: String,
+    height: i64,
+    version: i32,
+    timestamp: NaiveDateTime,
+    bits: i32,
+    nonce: u32,
+    difficulty: i64,
+    tx_count: i64,
+}
+
+pub async fn list(Extension(database): Extension<Database>) -> Json<Vec<BlockList>> {
+    let database = database.get().await.unwrap();
+
+    let blocks = crate::database::blocks::fetch_latest_blocks(&database, 5).await.unwrap();
+
+    Json(
+        blocks.into_iter()
+            .map(|(mut block, tx_count)| {
+                // TODO: do this on insert
+                block.hash.reverse();
+
+                BlockList {
+                    hash: hex::encode(block.hash),
+                    height: block.height,
+                    version: block.version,
+                    timestamp: block.timestamp,
+                    bits: block.bits,
+                    nonce: block.nonce,
+                    difficulty: block.difficulty,
+                    tx_count
+                }
+            })
+            .collect()
+    )
+}
 
 #[derive(Serialize)]
 pub struct Block {
@@ -13,9 +52,10 @@ pub struct Block {
     // #[serde(with = "chrono::serde::ts_seconds")]
     timestamp: NaiveDateTime,
     bits: i32,
-    nonce: i32,
+    nonce: u32,
     difficulty: i64,
     transactions: Vec<Transaction>,
+    hash: String,
 }
 
 #[derive(Serialize)]
@@ -70,7 +110,7 @@ pub async fn handle(
 ) -> Json<Block> {
     let database = database.get().await.unwrap();
 
-    let block = crate::database::blocks::fetch_block_by_height(&database, height)
+    let mut block = crate::database::blocks::fetch_block_by_height(&database, height)
         .await
         .unwrap()
         .unwrap();
@@ -80,7 +120,11 @@ pub async fn handle(
             .await
             .unwrap();
 
+    // TODO: do this on insert
+    block.hash.reverse();
+
     Json(Block {
+        hash: hex::encode(block.hash),
         height: block.height,
         version: block.version,
         size: block.size,

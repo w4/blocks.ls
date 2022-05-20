@@ -1,22 +1,26 @@
-<script>
-  import { _ } from "svelte-i18n";
+<script context="module">
+  export async function load({ fetch }) {
+    let res = await fetch('http://localhost:3001/block');
 
-  let blocks = [
-    {
-      height: 123457,
-      timestamp: "12 minutes ago",
-      transactions: 453,
-      size: "1094.092",
-      weight: "3999.574",
-    },
-    {
-      height: 123456,
-      timestamp: "22 minutes ago",
-      transactions: 133,
-      size: "598.233",
-      weight: "3999.122",
-    },
-  ];
+    if (res.ok) {
+      return {
+        props: {
+          blocks: await res.json()
+        }
+      };
+    }
+    return {
+      status: res.status,
+      error: new Error()
+    };
+  }
+</script>
+
+<script>
+  import { t as _ } from "$lib/i18n";
+
+  // TODO: needs loader
+  export let blocks = [];
 
   let transactions = [
     {
@@ -74,9 +78,9 @@
         {#each blocks as block}
           <tr>
             <th><a href={`/block/${block.height}`}>{block.height}</a></th>
-            <td>{block.timestamp}</td>
-            <td>{block.transactions}</td>
-            <td>{block.size}</td>
+            <td>{block.timestamp}</td> <!-- todo: moment.js -->
+            <td>{block.tx_count}</td>
+            <td>{block.bits}</td> <!-- todo: this isn't really size -->
             <td>{block.weight}</td>
           </tr>
         {/each}
