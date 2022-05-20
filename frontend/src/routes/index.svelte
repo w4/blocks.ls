@@ -54,7 +54,10 @@
 
 <div>
   <section>
-    <h2>{$_("home.latest_blocks.header")}</h2>
+    <div class="flex">
+      <h2 class="flex-grow">{$_("home.latest_blocks.header")}</h2>
+      <a class="header-size text-white hover:text-slate-400" href="/block">→</a>
+    </div>
 
     <table>
       <thead>
@@ -82,7 +85,10 @@
   </section>
 
   <section>
-    <h2>{$_("home.latest_txns.header")}</h2>
+    <div class="flex">
+      <h2 class="flex-grow">{$_("home.latest_txns.header")}</h2>
+      <a class="header-size text-white hover:text-slate-400" href="/tx">→</a>
+    </div>
 
     <table>
       <thead>

@@ -3,6 +3,7 @@ section {
   @apply mt-8 mx-auto bg-gray-800 rounded-md text-slate-200;
 }
 
-section h2 {
+section h2,
+.header-size {
   @apply text-2xl p-8;
 }

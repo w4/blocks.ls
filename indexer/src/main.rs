@@ -13,6 +13,10 @@ use bitcoincore_rpc_async::{
 };
 use chrono::{TimeZone, Utc};
 use clap::Parser;
+use futures::stream::FuturesOrdered;
+use futures::StreamExt;
+use std::sync::Arc;
+use tokio::time::Instant;
 use tracing::Level;
 
 #[tokio::main]
@@ -23,14 +27,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .with_max_level(args.logging_level())
         .init();
 
-    let bitcoin_rpc = Client::new(
-        args.config.bitcoin_rpc.address,
-        Auth::UserPass(
-            args.config.bitcoin_rpc.username,
-            args.config.bitcoin_rpc.password,
-        ),
-    )
-    .await?;
+    let bitcoin_rpc = Arc::new(
+        Client::new(
+            args.config.bitcoin_rpc.address,
+            Auth::UserPass(
+                args.config.bitcoin_rpc.username,
+                args.config.bitcoin_rpc.password,
+            ),
+        )
+        .await?,
+    );
 
     let database = Database::new(args.config.database)?;
     database::migrations::runner()
@@ -40,51 +46,96 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let height = bitcoin_rpc.get_block_count().await?;
     eprintln!("Current block height: {}", height);
 
-    process_block(&bitcoin_rpc, database.get().await.unwrap().as_mut(), 736822).await?;
+    let start = 0;
+
+    let (tx, mut rx) = tokio::sync::mpsc::channel::<(u64, BlockHash, Block)>(200);
+
+    let start_time = Instant::now();
+
+    let fetch_blocks = tokio::spawn(async move {
+        let mut blocks_fetching = FuturesOrdered::new();
+
+        let mut height = start;
+
+        loop {
+            tokio::select! {
+                Some(task) = blocks_fetching.next() => {
+                    let task: Result<_, _> = task;
+                    tx.send(task.unwrap()).await.unwrap();
+                }
+                _ = async {}, if blocks_fetching.len() < 20 => {
+                    let bitcoin_rpc = bitcoin_rpc.clone();
+
+                    if (height % 100) == 0 && (height - start) > 500 {
+                        eprintln!("Average per tx fetched/s: {}. Current {}", (height - start) / start_time.elapsed().as_secs(), height);
+                    }
+
+                    blocks_fetching.push(tokio::spawn(async move {
+                        let hash = bitcoin_rpc.get_block_hash(height).await.unwrap();
+                        let block = bitcoin_rpc.get_block(&hash).await.unwrap();
+
+                        (height, hash, block)
+                    }));
+
+                    height += 1;
+                }
+            }
+        }
+    });
+
+    let process_blocks = tokio::spawn(async move {
+        let mut database = database.get().await.unwrap();
+
+        while let Some((height, hash, block)) = rx.recv().await {
+            process_block(database.as_mut(), height as i64, hash, block)
+                .await
+                .unwrap();
+
+            if (height % 100) == 0 && height > 500 {
+                eprintln!(
+                    "Average processed/s: {}. Current {}",
+                    height / start_time.elapsed().as_secs(),
+                    height
+                );
+            }
+        }
+    });
+
+    tokio::try_join!(fetch_blocks, process_blocks)?;
 
     Ok(())
 }
 
 pub async fn process_block(
-    bitcoin_rpc: &Client,
     database: &mut tokio_postgres::Client,
-    block: u64,
+    height: i64,
+    hash: BlockHash,
+    block: Block,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    let hash = bitcoin_rpc.get_block_hash(block).await?;
-    let block = bitcoin_rpc.get_block(&hash).await?;
-
     let tx = database.transaction().await?;
 
-    let block_id: i64 = insert_block(&tx, &block, &hash).await?;
-    eprintln!("block_id = {}", block_id);
+    let block_id: i64 = insert_block(&tx, height, &block, &hash).await?;
 
     {
         let tx = &tx;
-        futures::future::try_join_all({
-            block.txdata.iter().map(|transaction| async move {
-                let transaction_id = insert_transaction(tx, block_id, transaction).await?;
 
-                futures::future::try_join(
-                    futures::future::try_join_all(transaction.input.iter().map(|transaction_in| {
-                        insert_transaction_input(tx, transaction_id, transaction_in)
-                    })),
-                    futures::future::try_join_all(transaction.output.iter().enumerate().map(
-                        |(index, transaction_out)| {
-                            insert_transaction_output(
-                                tx,
-                                index as i64,
-                                transaction_id,
-                                transaction_out,
-                            )
-                        },
-                    )),
-                )
-                .await?;
+        for transaction in block.txdata {
+            let transaction_id = insert_transaction(tx, block_id, &transaction).await?;
 
-                Ok::<_, Box<dyn std::error::Error>>(())
-            })
-        })
-        .await?;
+            futures::future::try_join(
+                futures::future::try_join_all(transaction.input.iter().enumerate().map(
+                    |(index, transaction_in)| {
+                        insert_transaction_input(tx, index as i64, transaction_id, transaction_in)
+                    },
+                )),
+                futures::future::try_join_all(transaction.output.iter().enumerate().map(
+                    |(index, transaction_out)| {
+                        insert_transaction_output(tx, index as i64, transaction_id, transaction_out)
+                    },
+                )),
+            )
+            .await?;
+        }
     }
 
     tx.commit().await?;
@@ -94,14 +145,21 @@ pub async fn process_block(
 
 async fn insert_block(
     tx: &tokio_postgres::Transaction<'_>,
+    height: i64,
     block: &Block,
     block_hash: &BlockHash,
 ) -> Result<i64, Box<dyn std::error::Error>> {
     let query = "
-        INSERT INTO blocks
-        (hash, height, version, size, merkle_root_hash, timestamp, bits, nonce, difficulty)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-        RETURNING id
+        WITH inserted AS (
+            INSERT INTO blocks
+            (hash, height, version, size, merkle_root_hash, timestamp, bits, nonce, difficulty)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+            ON CONFLICT DO NOTHING
+            RETURNING id
+        ) SELECT COALESCE(
+            (SELECT id FROM inserted),
+            (SELECT id FROM blocks WHERE hash = $1)
+        ) AS id
     ";
 
     // TODO: previous_block_id
@@ -110,7 +168,7 @@ async fn insert_block(
             query,
             &[
                 &block_hash.to_vec(),
-                &(block.bip34_block_height().unwrap_or(0) as i64),
+                &height,
                 &block.header.version,
                 &(block.get_size() as i32),
                 &block.header.merkle_root.to_vec(),
@@ -130,10 +188,16 @@ async fn insert_transaction(
     transaction: &Transaction,
 ) -> Result<i64, Box<dyn std::error::Error>> {
     let query = "
-        INSERT INTO transactions
-        (hash, block_id, version, lock_time, weight, coinbase, replace_by_fee)
-        VALUES ($1, $2, $3, $4, $5, $6, $7)
-        RETURNING id
+        WITH inserted AS (
+            INSERT INTO transactions
+            (hash, block_id, version, lock_time, weight, coinbase, replace_by_fee)
+            VALUES ($1, $2, $3, $4, $5, $6, $7)
+            ON CONFLICT DO NOTHING
+            RETURNING id
+        ) SELECT COALESCE(
+            (SELECT id FROM inserted),
+            (SELECT id FROM transactions WHERE hash = $1)
+        ) AS id
     ";
 
     Ok(tx
@@ -155,6 +219,7 @@ async fn insert_transaction(
 
 async fn insert_transaction_input(
     tx: &tokio_postgres::Transaction<'_>,
+    index: i64,
     transaction_id: i64,
     transaction_input: &TxIn,
 ) -> Result<(), Box<dyn std::error::Error>> {
@@ -166,18 +231,19 @@ async fn insert_transaction_input(
     .await?;
 
     let query = "
-        INSERT INTO transaction_outputs
-        (transaction_id, previous_output, script, address)
+        INSERT INTO transaction_inputs
+        (transaction_id, index, previous_output, script)
         VALUES ($1, $2, $3, $4)
+        ON CONFLICT DO NOTHING
     ";
 
     tx.execute(
         query,
         &[
             &transaction_id,
-            &previous_output.as_ref().map(|(id, _)| *id),
+            &index,
+            &previous_output,
             &transaction_input.script_sig.as_bytes(),
-            &previous_output.map(|(_, address)| address),
         ],
     )
     .await?;
@@ -195,6 +261,7 @@ async fn insert_transaction_output(
         INSERT INTO transaction_outputs
         (transaction_id, index, value, script, unspendable, address)
         VALUES ($1, $2, $3, $4, $5, $6)
+        ON CONFLICT DO NOTHING
     ";
 
     tx.execute(
@@ -222,9 +289,9 @@ async fn select_transaction_output(
     tx: &tokio_postgres::Transaction<'_>,
     transaction_hash: &[u8],
     transaction_index: i64,
-) -> Result<Option<(i64, String)>, Box<dyn std::error::Error>> {
+) -> Result<Option<i64>, Box<dyn std::error::Error>> {
     let query = "
-        SELECT transaction_outputs.id AS output_id, address
+        SELECT transaction_outputs.id AS output_id
         FROM transactions
         INNER JOIN transaction_outputs
             ON transactions.id = transaction_outputs.transaction_id
@@ -236,7 +303,7 @@ async fn select_transaction_output(
         .query_opt(query, &[&transaction_hash, &transaction_index])
         .await?;
 
-    Ok(row.map(|v| (v.get("output_id"), v.get("address"))))
+    Ok(row.map(|v| v.get("output_id")))
 }
 
 #[derive(Parser, Debug)]
