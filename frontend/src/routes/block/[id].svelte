@@ -1,11 +1,23 @@
 <script context="module">
-  export async function load({ fetch, params }) {
-    let res = await fetch(`http://localhost:3001/block/${params.id}`);
+  export async function load({ fetch, params, url }) {
+    const offset = Math.max(0, Number.parseInt(url.searchParams.get('offset') || '0'));
+
+    let res = await fetch(`http://localhost:3001/block/${params.id}?offset=${offset}`);
 
     if (res.ok) {
+      const block = await res.json();
+
+      if (offset >= block.tx_count) {
+        return {
+          status: 404,
+          error: new Error("Offset exceeds the transaction count in this block")
+        };
+      }
+
       return {
         props: {
-          block: await res.json()
+          block,
+          currentPage: Math.floor(offset / 30),
         }
       };
     }
@@ -17,15 +29,12 @@
 </script>
 
 <script>
-  import { hexToAsm } from "$lib/bitcoinScript";
+  import { briefHexToAsm } from "$lib/bitcoinScript";
 
   export let block = {};
+  export let currentPage = 0;
 
-  for (let transaction of block.transactions) {
-    for (let output of transaction.outputs) {
-      console.log(hexToAsm(output.script));
-    }
-  }
+  const scale = Math.pow(10, 8);
 </script>
 
 <div>
@@ -50,52 +59,108 @@
   </section>
 
   <section class="!bg-transparent">
-    <h3 class="text-white text-2xl">{block.transactions.length} Transactions</h3>
+    <h3 class="text-white text-2xl">{block.tx_count} Transaction{block.tx_count > 1 ? 's' : ''}</h3>
   </section>
 
   {#each block.transactions as transaction}
-    <section>
-      <h3 class="text-lg m-2">{transaction.hash}</h3>
+    <section class="p-4">
+      <h3 class="text-lg m-2" id={transaction.hash}>
+        <a href={`#${transaction.hash}`}>§</a>
+        {transaction.hash}
+      </h3>
 
-      <div class="flex">
-        <table>
-          <tbody>
+      <div class="table table-fixed w-full">
+        <div class="table-cell break-all">
           {#if transaction.coinbase}
-            <tr>
-              <td>Coinbase</td>
-            </tr>
+            <div class="item w-full">
+              <code>Coinbase</code>
+            </div>
           {:else}
             {#each transaction.inputs as input}
-              <tr>
-                <td>{input.previous_output?.address || hexToAsm(input.script).join('\n')}</td>
-              </tr>
+              <div class="item w-full">
+                <div class="flex-grow">
+                  <code>{input.previous_output?.address || briefHexToAsm(input.script).join('\n')}</code>
+                </div>
+
+                {#if input.previous_output}
+                  <div class="amount">
+                    <code>{(input.previous_output.value / scale).toFixed(8)} BTC</code>
+                  </div>
+                {/if}
+              </div>
             {/each}
           {/if}
-          </tbody>
-        </table>
+        </div>
 
-        <div class="text-2xl mx-4 self-center">
+        <div class="text-2xl table-cell w-10 align-middle text-center">
           →
         </div>
 
-        <table>
-          <tbody>
-          <tr>
-            {#each transaction.outputs as output}
-              <td>{output.address || hexToAsm(output.script).join('\n')}</td>
-            {/each}
-          </tbody>
-        </table>
+        <div class="table-cell break-all">
+          {#each transaction.outputs as output}
+            <div class="item w-full">
+              <div class="flex-grow">
+                <code>{output.address || briefHexToAsm(output.script).join(' ').trim() || output.script}</code>
+              </div>
+
+              <div class="amount">
+                <code>{(output.value / scale).toFixed(8)} BTC</code>
+              </div>
+            </div>
+          {/each}
+        </div>
       </div>
     </section>
   {/each}
+
+  <div class="pagination">
+    {#each { length: Math.ceil(block.tx_count / 30) } as _, i}
+      <a href="/block/{block.height}{i === 0 ? '' : `?offset=${i * 30}`}" class:active={i === currentPage}>{i + 1}</a>
+    {/each}
+  </div>
 </div>
 
 <style lang="scss">
   @import "../../_section.scss";
   @import "../../_table.scss";
 
+  .pagination {
+    @apply m-auto text-center my-7;
+
+    max-width: 90rem;
+
+    a {
+      @apply inline-block p-3 m-1 bg-gray-800 text-white rounded-lg;
+
+      &.active {
+        @apply bg-orange-400;
+      }
+    }
+  }
+
   section {
     @apply text-xs;
+  }
+
+  .table-cell {
+    counter-reset: inout;
+  }
+
+  .amount {
+    @apply whitespace-nowrap ml-4;
+  }
+
+  div.item {
+    @apply bg-gray-900/40 p-4 rounded-lg flex mb-2;
+    counter-increment: inout;
+
+    &:last-of-type {
+      @apply mb-0;
+    }
+
+    &::before {
+      @apply inline-block w-6 mr-2 select-none text-zinc-500;
+      content: counter(inout);
+    }
   }
 </style>

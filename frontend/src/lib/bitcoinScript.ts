@@ -15,7 +15,7 @@ export function hexToAsm(hex: string) {
         }
 
         if (byte >= 0x52 && byte <= 0x60)  {
-            out.push(byte-0x50)
+            out.push(byte - 0x50)
             continue;
         }
 
@@ -28,6 +28,20 @@ export function hexToAsm(hex: string) {
     }
 
     return out;
+}
+
+export function briefHexToAsm(hex: string) {
+    const asm = hexToAsm(hex);
+
+    const OP_RETURN = Operation[Operation.OP_RETURN];
+
+    for (const op of asm) {
+        if (op === OP_RETURN) {
+            return [OP_RETURN];
+        }
+    }
+
+    return asm;
 }
 
 enum Operation {

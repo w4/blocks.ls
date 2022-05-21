@@ -35,6 +35,7 @@
   "type": "module",
   "dependencies": {
     "buffer": "^6.0.3",
-    "sveltekit-i18n": "^2.2.1"
+    "sveltekit-i18n": "^2.2.1",
+    "svelte-time": "^0.7.0"
   }
 }

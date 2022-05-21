@@ -46,7 +46,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let height = bitcoin_rpc.get_block_count().await?;
     eprintln!("Current block height: {}", height);
 
-    let start = 0;
+    let start = 737000;
 
     let (tx, mut rx) = tokio::sync::mpsc::channel::<(u64, BlockHash, Block)>(200);
 

@@ -43,7 +43,10 @@ pub async fn fetch_height(db: &Connection) -> Result<u64> {
 
 pub type TransactionCount = i64;
 
-pub async fn fetch_latest_blocks(db: &Connection, count: i64) -> Result<Vec<(Block, TransactionCount)>> {
+pub async fn fetch_latest_blocks(
+    db: &Connection,
+    count: i64,
+) -> Result<Vec<(Block, TransactionCount)>> {
     let blocks = db
         .query(
             "SELECT blocks.*, COUNT(transactions.id) AS tx_count

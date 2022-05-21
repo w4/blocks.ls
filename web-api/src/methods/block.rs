@@ -1,9 +1,10 @@
-use std::ptr::hash;
 use crate::Database;
-use axum::extract::Path;
+use axum::extract::{Path, Query};
 use axum::{Extension, Json};
 use chrono::NaiveDateTime;
-use serde::Serialize;
+use futures::StreamExt;
+use serde::{Deserialize, Serialize};
+use std::ptr::hash;
 
 #[derive(Serialize)]
 pub struct BlockList {
@@ -20,10 +21,13 @@ pub struct BlockList {
 pub async fn list(Extension(database): Extension<Database>) -> Json<Vec<BlockList>> {
     let database = database.get().await.unwrap();
 
-    let blocks = crate::database::blocks::fetch_latest_blocks(&database, 5).await.unwrap();
+    let blocks = crate::database::blocks::fetch_latest_blocks(&database, 5)
+        .await
+        .unwrap();
 
     Json(
-        blocks.into_iter()
+        blocks
+            .into_iter()
             .map(|(mut block, tx_count)| {
                 // TODO: do this on insert
                 block.hash.reverse();
@@ -36,11 +40,18 @@ pub async fn list(Extension(database): Extension<Database>) -> Json<Vec<BlockLis
                     bits: block.bits,
                     nonce: block.nonce,
                     difficulty: block.difficulty,
-                    tx_count
+                    tx_count,
                 }
             })
-            .collect()
+            .collect(),
     )
+}
+
+#[derive(Serialize)]
+pub struct GetResponse {
+    tx_count: i64,
+    #[serde(flatten)]
+    block: Block,
 }
 
 #[derive(Serialize)]
@@ -104,26 +115,36 @@ impl From<crate::database::transactions::TransactionOutput> for TransactionOutpu
     }
 }
 
+#[derive(Deserialize)]
+pub struct HandleQuery {
+    #[serde(default)]
+    offset: u32,
+}
+
 pub async fn handle(
     Extension(database): Extension<Database>,
     Path(height): Path<i64>,
-) -> Json<Block> {
+    Query(query): Query<HandleQuery>,
+) -> Json<GetResponse> {
     let database = database.get().await.unwrap();
+    let offset = i64::from(query.offset);
+    let limit = 30;
 
     let mut block = crate::database::blocks::fetch_block_by_height(&database, height)
         .await
         .unwrap()
         .unwrap();
 
-    let transactions =
-        crate::database::transactions::fetch_transactions_for_block(&database, block.id)
-            .await
-            .unwrap();
+    let (count, transactions) = crate::database::transactions::fetch_transactions_for_block(
+        &database, block.id, limit, offset,
+    )
+    .await
+    .unwrap();
 
     // TODO: do this on insert
     block.hash.reverse();
 
-    Json(Block {
+    let block = Block {
         hash: hex::encode(block.hash),
         height: block.height,
         version: block.version,
@@ -146,5 +167,10 @@ pub async fn handle(
                 outputs: tx.outputs.0.into_iter().map(Into::into).collect(),
             })
             .collect(),
+    };
+
+    Json(GetResponse {
+        tx_count: count,
+        block,
     })
 }

@@ -1,8 +1,8 @@
 use crate::database::{Connection, Result};
-use serde::{Deserialize, Deserializer};
 use serde::de::Error;
+use serde::{Deserialize, Deserializer};
 use tokio::time::Instant;
-use tokio_postgres::types::Json;
+use tokio_postgres::types::{Json, ToSql};
 use tokio_postgres::Row;
 
 #[derive(Debug)]
@@ -48,42 +48,66 @@ pub struct TransactionOutput {
     pub address: Option<String>,
 }
 
-fn trim_hex_prefix<'de, D: Deserializer<'de>>(deserializer: D) -> std::result::Result<String, D::Error> {
+fn trim_hex_prefix<'de, D: Deserializer<'de>>(
+    deserializer: D,
+) -> std::result::Result<String, D::Error> {
     let mut s = String::deserialize(deserializer)?;
     s.remove(0);
     s.remove(0);
     Ok(s)
 }
 
-pub async fn fetch_transactions_for_block(db: &Connection, id: i64) -> Result<Vec<Transaction>> {
-    let transactions = db
-        .query(
-            "SELECT
-           transactions.*,
-           JSON_AGG(transaction_inputs) AS inputs,
-           JSON_AGG(transaction_outputs) AS outputs
-         FROM transactions
-         LEFT JOIN
-           (
-             SELECT
-               row_to_json(transaction_outputs) AS previous_output_tx,
-               transaction_inputs.*
-             FROM transaction_inputs
-             LEFT JOIN transaction_outputs
-               ON transaction_outputs.id = transaction_inputs.previous_output
-           ) transaction_inputs
-           ON transactions.id = transaction_inputs.transaction_id
-         LEFT JOIN transaction_outputs
-	       ON transactions.id = transaction_outputs.transaction_id
-	     WHERE transactions.block_id = $1
-	     GROUP BY transactions.id
-	     ORDER BY transactions.id ASC",
-            &[&id],
-        )
-        .await?;
+pub async fn fetch_transactions_for_block(
+    db: &Connection,
+    id: i64,
+    limit: i64,
+    offset: i64,
+) -> Result<(i64, Vec<Transaction>)> {
+    let count_query = "
+        SELECT COUNT(*) AS count
+        FROM transactions
+        WHERE transactions.block_id = $1
+    ";
 
-    transactions
-        .into_iter()
-        .map(Transaction::from_row)
-        .collect()
+    let count_query_params: &[&(dyn ToSql + Sync)] = &[&id];
+
+    let select_query = "
+        SELECT
+            transactions.*,
+            (
+                SELECT JSON_AGG(transaction_inputs)
+                FROM (
+                    SELECT ROW_TO_JSON(transaction_outputs) AS previous_output_tx, transaction_inputs.*
+                    FROM transaction_inputs
+                    LEFT JOIN transaction_outputs
+                        ON transaction_outputs.id = transaction_inputs.previous_output
+                    WHERE transactions.id = transaction_inputs.transaction_id
+                ) transaction_inputs
+            ) AS inputs,
+            (
+                SELECT JSON_AGG(transaction_outputs.*)
+                FROM transaction_outputs
+                WHERE transactions.id = transaction_outputs.transaction_id
+            ) AS outputs
+        FROM transactions
+        WHERE transactions.block_id = $1
+        GROUP BY transactions.id
+        ORDER BY transactions.id ASC
+        LIMIT $2 OFFSET $3
+    ";
+
+    let select_query_params: &[&(dyn ToSql + Sync)] = &[&id, &limit, &offset];
+
+    let (count, transactions) = tokio::try_join!(
+        db.query_one(count_query, count_query_params),
+        db.query(select_query, select_query_params)
+    )?;
+
+    Ok((
+        count.try_get("count")?,
+        transactions
+            .into_iter()
+            .map(Transaction::from_row)
+            .collect::<Result<_>>()?,
+    ))
 }

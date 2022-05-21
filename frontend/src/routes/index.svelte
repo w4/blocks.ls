@@ -18,6 +18,7 @@
 
 <script>
   import { t as _ } from "$lib/i18n";
+  import Time from "svelte-time";
 
   // TODO: needs loader
   export let blocks = [];
@@ -78,7 +79,7 @@
         {#each blocks as block}
           <tr>
             <th><a href={`/block/${block.height}`}>{block.height}</a></th>
-            <td>{block.timestamp}</td> <!-- todo: moment.js -->
+            <td><Time live relative timestamp={block.timestamp} /></td> <!-- todo: moment.js -->
             <td>{block.tx_count}</td>
             <td>{block.bits}</td> <!-- todo: this isn't really size -->
             <td>{block.weight}</td>
