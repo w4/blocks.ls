@@ -20,8 +20,10 @@ export function hexToAsm(hex: string) {
         }
 
         if(byte >= 0x02 && byte <= 0x4b) {
+            out.push("OP_PUSHBYTES_" + byte);
             out.push(bytes.slice(i + 1, i + 1 + byte).toString("hex"));
             i += byte;
+            continue;
         }
 
         out.push(Operation[byte] || byte.toString(16))

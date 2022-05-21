@@ -156,15 +156,19 @@ pub async fn handle(
         difficulty: block.difficulty,
         transactions: transactions
             .into_iter()
-            .map(|tx| Transaction {
-                hash: hex::encode(tx.hash),
-                version: tx.version,
-                lock_time: tx.lock_time,
-                weight: tx.weight,
-                coinbase: tx.coinbase,
-                replace_by_fee: tx.replace_by_fee,
-                inputs: tx.inputs.0.into_iter().map(Into::into).collect(),
-                outputs: tx.outputs.0.into_iter().map(Into::into).collect(),
+            .map(|mut tx| {
+                tx.hash.reverse();
+
+                Transaction {
+                    hash: hex::encode(tx.hash),
+                    version: tx.version,
+                    lock_time: tx.lock_time,
+                    weight: tx.weight,
+                    coinbase: tx.coinbase,
+                    replace_by_fee: tx.replace_by_fee,
+                    inputs: tx.inputs.0.into_iter().map(Into::into).collect(),
+                    outputs: tx.outputs.0.into_iter().map(Into::into).collect(),
+                }
             })
             .collect(),
     };

@@ -1,3 +1,10 @@
+.table-responsive {
+  @apply block w-full overflow-x-auto;
+
+  -webkit-overflow-scrolling: touch;
+  -ms-overflow-style: -ms-autohiding-scrollbar;
+}
+
 table {
   @apply border-collapse table-auto w-full;
 

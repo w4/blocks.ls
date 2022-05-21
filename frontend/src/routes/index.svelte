@@ -18,10 +18,13 @@
 
 <script>
   import { t as _ } from "$lib/i18n";
-  import Time from "svelte-time";
+  import Time from "$lib/Time.svelte";
 
   // TODO: needs loader
   export let blocks = [];
+
+  let relativeTimestamps = true;
+  const toggleTimestamps = () => relativeTimestamps = !relativeTimestamps;
 
   let transactions = [
     {
@@ -64,29 +67,39 @@
       <a class="header-size text-white hover:text-slate-400" href="/block">→</a>
     </div>
 
-    <table>
-      <thead>
-        <tr>
-          <th>{$_("home.latest_blocks.table.height")}</th>
-          <th>{$_("home.latest_blocks.table.timestamp")}</th>
-          <th>{$_("home.latest_blocks.table.txns")}</th>
-          <th>{$_("home.latest_blocks.table.size")}</th>
-          <th>{$_("home.latest_blocks.table.weight")}</th>
-        </tr>
-      </thead>
-
-      <tbody>
-        {#each blocks as block}
+    <div class="table-responsive">
+      <table class="table-fixed md:table-auto">
+        <thead>
           <tr>
-            <th><a href={`/block/${block.height}`}>{block.height}</a></th>
-            <td><Time live relative timestamp={block.timestamp} /></td> <!-- todo: moment.js -->
-            <td>{block.tx_count}</td>
-            <td>{block.bits}</td> <!-- todo: this isn't really size -->
-            <td>{block.weight}</td>
+            <th>{$_("home.latest_blocks.table.height")}</th>
+            <th>{$_("home.latest_blocks.table.timestamp")}</th>
+            <th>{$_("home.latest_blocks.table.txns")}</th>
+            <th>{$_("home.latest_blocks.table.size")}</th>
+            <th>{$_("home.latest_blocks.table.weight")}</th>
           </tr>
-        {/each}
-      </tbody>
-    </table>
+        </thead>
+
+        <tbody>
+          {#each blocks as block}
+            <tr>
+              <th><a href={`/block/${block.height}`}>{block.height}</a></th>
+              <td>
+                <span on:click={toggleTimestamps}>
+                  <Time
+                    live
+                    relative={relativeTimestamps}
+                    timestamp={block.timestamp}
+                  />
+                </span>
+              </td>
+              <td>{block.tx_count}</td>
+              <td>{block.bits}</td> <!-- todo: this isn't really size -->
+              <td>{block.weight}</td>
+            </tr>
+          {/each}
+        </tbody>
+      </table>
+    </div>
   </section>
 
   <section>
@@ -95,27 +108,29 @@
       <a class="header-size text-white hover:text-slate-400" href="/tx">→</a>
     </div>
 
-    <table>
-      <thead>
-        <tr>
-          <th>{$_("home.latest_txns.table.txn_id")}</th>
-          <th>{$_("home.latest_txns.table.value")}</th>
-          <th>{$_("home.latest_txns.table.size")}</th>
-          <th>{$_("home.latest_txns.table.fee")}</th>
-        </tr>
-      </thead>
-
-      <tbody>
-        {#each transactions as txn}
+    <div class="table-responsive">
+      <table>
+        <thead>
           <tr>
-            <th><a href={`/tx/${txn.hash}`}><pre>{txn.hash}</pre></a></th>
-            <td>{txn.amount.value} {txn.amount.unit}</td>
-            <td>{txn.size.value} {txn.size.unit}</td>
-            <td>{txn.fee.value} {txn.fee.unit}</td>
+            <th>{$_("home.latest_txns.table.txn_id")}</th>
+            <th>{$_("home.latest_txns.table.value")}</th>
+            <th>{$_("home.latest_txns.table.size")}</th>
+            <th>{$_("home.latest_txns.table.fee")}</th>
           </tr>
-        {/each}
-      </tbody>
-    </table>
+        </thead>
+
+        <tbody>
+          {#each transactions as txn}
+            <tr>
+              <th><a href={`/tx/${txn.hash}`}><pre>{txn.hash}</pre></a></th>
+              <td>{txn.amount.value} {txn.amount.unit}</td>
+              <td>{txn.size.value} {txn.size.unit}</td>
+              <td>{txn.fee.value} {txn.fee.unit}</td>
+            </tr>
+          {/each}
+        </tbody>
+      </table>
+    </div>
   </section>
 </div>
 

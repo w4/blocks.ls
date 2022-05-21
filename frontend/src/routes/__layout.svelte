@@ -36,7 +36,9 @@
   </div>
 </header>
 
-<slot />
+<main>
+  <slot />
+</main>
 
 <style lang="scss">
   header {
@@ -64,5 +66,9 @@
         }
       }
     }
+  }
+
+  main {
+    @apply mx-5;
   }
 </style>

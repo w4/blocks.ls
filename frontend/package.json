@@ -35,7 +35,8 @@
   "type": "module",
   "dependencies": {
     "buffer": "^6.0.3",
-    "sveltekit-i18n": "^2.2.1",
-    "svelte-time": "^0.7.0"
+    "svelte-time": "^0.7.0",
+    "dayjs": "^1.11.2",
+    "sveltekit-i18n": "^2.2.1"
   }
 }
