@@ -1,6 +1,6 @@
 <script context="module">
   export async function load({ fetch, params, url }) {
-    const offset = Math.max(0, Number.parseInt(url.searchParams.get('offset') || '0'));
+    const offset = Math.max(0, Number.parseInt(url.searchParams.get("offset") || "0"));
 
     let res = await fetch(`http://localhost:3001/block/${params.id}?offset=${offset}`);
 
@@ -10,7 +10,7 @@
       if (offset >= block.tx_count) {
         return {
           status: 404,
-          error: new Error("Offset exceeds the transaction count in this block")
+          error: new Error("Offset exceeds the transaction count in this block"),
         };
       }
 
@@ -18,12 +18,12 @@
         props: {
           block,
           currentPage: Math.floor(offset / 30),
-        }
+        },
       };
     }
     return {
       status: res.status,
-      error: new Error()
+      error: new Error(),
     };
   }
 </script>
@@ -58,16 +58,19 @@
   </section>
 
   <section class="!bg-transparent">
-    <h3 class="text-white text-2xl">{block.tx_count} Transaction{block.tx_count > 1 ? 's' : ''}</h3>
+    <h3 class="text-white text-2xl">{block.tx_count} Transaction{block.tx_count > 1 ? "s" : ""}</h3>
   </section>
 
   {#each block.transactions as transaction}
-    <Transaction transaction={transaction} />
+    <Transaction {transaction} />
   {/each}
 
   <div class="pagination">
     {#each { length: Math.ceil(block.tx_count / 30) } as _, i}
-      <a href="/block/{block.height}{i === 0 ? '' : `?offset=${i * 30}`}" class:active={i === currentPage}>{i + 1}</a>
+      <a
+        href="/block/{block.height}{i === 0 ? '' : `?offset=${i * 30}`}"
+        class:active={i === currentPage}>{i + 1}</a
+      >
     {/each}
   </div>
 </div>

@@ -4,11 +4,22 @@ use axum::{Extension, Json};
 use chrono::NaiveDateTime;
 use futures::StreamExt;
 use serde::{Deserialize, Serialize};
-use std::ptr::hash;
+
+#[derive(Serialize)]
+pub struct MinedBy {
+    pool: &'static str,
+}
+
+impl From<Pool> for MinedBy {
+    fn from(pool: Pool) -> Self {
+        Self { pool: pool.name() }
+    }
+}
 
 #[derive(Serialize)]
 pub struct BlockList {
     hash: String,
+    mined_by: Option<MinedBy>,
     height: i64,
     version: i32,
     timestamp: NaiveDateTime,
@@ -18,22 +29,41 @@ pub struct BlockList {
     tx_count: i64,
 }
 
-pub async fn list(Extension(database): Extension<Database>) -> Json<Vec<BlockList>> {
+#[derive(Deserialize)]
+pub struct ListParams {
+    #[serde(default)]
+    limit: u32,
+    #[serde(default)]
+    offset: u32,
+}
+
+pub async fn list(
+    Extension(database): Extension<Database>,
+    Query(params): Query<ListParams>,
+) -> Json<Vec<BlockList>> {
     let database = database.get().await.unwrap();
 
-    let blocks = crate::database::blocks::fetch_latest_blocks(&database, 5)
-        .await
-        .unwrap();
+    let limit = std::cmp::min(20, std::cmp::max(5, params.limit));
+    let offset = params.offset;
+
+    let blocks = crate::database::blocks::fetch_latest_blocks(
+        &database,
+        i64::from(limit),
+        i64::from(offset),
+    )
+    .await
+    .unwrap();
 
     Json(
         blocks
             .into_iter()
-            .map(|(mut block, tx_count)| {
+            .map(|(mut block, tx_count, coinbase_script)| {
                 // TODO: do this on insert
                 block.hash.reverse();
 
                 BlockList {
                     hash: hex::encode(block.hash),
+                    mined_by: Pool::fetch_from_script(&coinbase_script).map(Into::into),
                     height: block.height,
                     version: block.version,
                     timestamp: block.timestamp,
@@ -77,20 +107,61 @@ pub struct Transaction {
     pub weight: i64,
     pub coinbase: bool,
     pub replace_by_fee: bool,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
     pub inputs: Vec<TransactionInput>,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
     pub outputs: Vec<TransactionOutput>,
+}
+
+impl From<crate::database::transactions::Transaction> for Transaction {
+    fn from(mut tx: crate::database::transactions::Transaction) -> Self {
+        tx.hash.reverse();
+
+        Transaction {
+            hash: hex::encode(tx.hash),
+            version: tx.version,
+            lock_time: tx.lock_time,
+            weight: tx.weight,
+            coinbase: tx.coinbase,
+            replace_by_fee: tx.replace_by_fee,
+            inputs: tx.inputs.0.into_iter().map(Into::into).collect(),
+            outputs: tx.outputs.0.into_iter().map(Into::into).collect(),
+        }
+    }
+}
+
+#[derive(Serialize)]
+pub struct PreviousOutput {
+    #[serde(flatten)]
+    output: TransactionOutput,
+    tx_hash: String,
+    tx_index: i64,
 }
 
 #[derive(Serialize)]
 pub struct TransactionInput {
-    previous_output: Option<TransactionOutput>,
+    witness: Vec<String>,
+    sequence: i64,
+    previous_output: Option<PreviousOutput>,
     script: String,
 }
 
 impl From<crate::database::transactions::TransactionInput> for TransactionInput {
     fn from(txi: crate::database::transactions::TransactionInput) -> Self {
         Self {
-            previous_output: txi.previous_output_tx.map(Into::into),
+            witness: txi.witness.into_iter().map(hex::encode).collect(),
+            sequence: txi.sequence,
+            previous_output: txi.previous_output.map(|v| PreviousOutput {
+                tx_index: v.index,
+                output: v.into(),
+                tx_hash: txi
+                    .previous_output_tx_hash
+                    .map(|mut h| {
+                        h.reverse();
+                        hex::encode(h)
+                    })
+                    .unwrap_or_default(),
+            }),
             script: txi.script,
         }
     }
@@ -98,6 +169,7 @@ impl From<crate::database::transactions::TransactionInput> for TransactionInput 
 
 #[derive(Serialize)]
 pub struct TransactionOutput {
+    index: i64,
     value: i64,
     script: String,
     unspendable: bool,
@@ -107,6 +179,7 @@ pub struct TransactionOutput {
 impl From<crate::database::transactions::TransactionOutput> for TransactionOutput {
     fn from(txo: crate::database::transactions::TransactionOutput) -> Self {
         Self {
+            index: txo.index,
             value: txo.value,
             script: txo.script,
             unspendable: txo.unspendable,
@@ -154,27 +227,79 @@ pub async fn handle(
         bits: block.bits,
         nonce: block.nonce,
         difficulty: block.difficulty,
-        transactions: transactions
-            .into_iter()
-            .map(|mut tx| {
-                tx.hash.reverse();
-
-                Transaction {
-                    hash: hex::encode(tx.hash),
-                    version: tx.version,
-                    lock_time: tx.lock_time,
-                    weight: tx.weight,
-                    coinbase: tx.coinbase,
-                    replace_by_fee: tx.replace_by_fee,
-                    inputs: tx.inputs.0.into_iter().map(Into::into).collect(),
-                    outputs: tx.outputs.0.into_iter().map(Into::into).collect(),
-                }
-            })
-            .collect(),
+        transactions: transactions.into_iter().map(Into::into).collect(),
     };
 
     Json(GetResponse {
         tx_count: count,
         block,
     })
+}
+
+pub enum Pool {
+    Luxor,
+    F2Pool,
+    Binance,
+    FoundryUsa,
+    Slush,
+    Poolin,
+    ViaBtc,
+    BtcCom,
+    AntPool,
+    MaraPool,
+    SbiCrypto,
+}
+
+impl Pool {
+    pub fn name(&self) -> &'static str {
+        match self {
+            Pool::Luxor => "Luxor",
+            Pool::F2Pool => "F2Pool",
+            Pool::Binance => "Binance",
+            Pool::FoundryUsa => "Foundry USA",
+            Pool::Slush => "Slush",
+            Pool::Poolin => "Poolin",
+            Pool::ViaBtc => "ViaBTC",
+            Pool::BtcCom => "BTC.com",
+            Pool::AntPool => "AntPool",
+            Pool::MaraPool => "MaraPool",
+            Pool::SbiCrypto => "SBICrypto",
+        }
+    }
+}
+
+impl Pool {
+    fn fetch_from_script(coinbase_script: &[u8]) -> Option<Self> {
+        let text = String::from_utf8_lossy(coinbase_script);
+
+        macro_rules! define {
+            ($($signature:expr => $pool:ident,)*) => {
+                if false {
+                    None
+                }
+                $(
+                    else if text.contains($signature) {
+                        Some(Self::$pool)
+                    }
+                )*
+                else {
+                    None
+                }
+            }
+        }
+
+        define! {
+            "Powered by Luxor Tech" => Luxor,
+            "F2Pool" => F2Pool,
+            "binance" => Binance,
+            "Foundry USA Pool" => FoundryUsa,
+            "slush" => Slush,
+            "poolin.com" => Poolin,
+            "ViaBTC" => ViaBtc,
+            "btcpool" => BtcCom,
+            "Mined by AntPool" => AntPool,
+            "MARA Pool" => MaraPool,
+            "SBICrypto" => SbiCrypto,
+        }
+    }
 }

@@ -11,6 +11,7 @@
       "table": {
         "height": "Height",
         "timestamp": "Timestamp",
+        "pool": "Pool",
         "txns": "Transactions",
         "size": "Size (KB)",
         "weight": "Weight (KWU)"

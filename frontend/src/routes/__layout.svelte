@@ -1,10 +1,10 @@
 <script context="module">
-  import { locale, loadTranslations } from '$lib/i18n';
+  import { locale, loadTranslations } from "$lib/i18n";
 
   export async function load({ url }) {
     const { pathname } = url;
 
-    const defaultLocale = 'en'; // TODO: get from cookie, user session, ...
+    const defaultLocale = "en"; // TODO: get from cookie, user session, ...
     const initLocale = locale.get() || defaultLocale;
 
     await loadTranslations(initLocale, pathname);

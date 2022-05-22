@@ -56,6 +56,8 @@ CREATE TABLE transaction_inputs (
     id BIGINT PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
     transaction_id BIGINT NOT NULL,
     index BIGINT NOT NULL,
+    sequence BIGINT NOT NULL,
+    witness BYTEA[] NOT NULL,
     previous_output BIGINT,
     script BYTEA NOT NULL,
     CONSTRAINT fk_transaction_id

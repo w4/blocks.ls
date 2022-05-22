@@ -46,17 +46,29 @@ pub type TransactionCount = i64;
 pub async fn fetch_latest_blocks(
     db: &Connection,
     count: i64,
-) -> Result<Vec<(Block, TransactionCount)>> {
+    offset: i64,
+) -> Result<Vec<(Block, TransactionCount, Vec<u8>)>> {
     let blocks = db
         .query(
-            "SELECT blocks.*, COUNT(transactions.id) AS tx_count
+            "SELECT
+               blocks.*,
+               COUNT(transactions.id) AS tx_count,
+               (
+                 SELECT script
+                 FROM transactions
+                 INNER JOIN transaction_inputs
+                   ON transaction_inputs.transaction_id = transactions.id
+                 WHERE transactions.block_id = blocks.id
+                   AND transactions.coinbase = true
+                 LIMIT 1
+               ) AS coinbase_script
              FROM blocks
              LEFT JOIN transactions
                ON transactions.block_id = blocks.id
              GROUP BY blocks.id
              ORDER BY blocks.height DESC
-             LIMIT $1",
-            &[&count],
+             LIMIT $1 OFFSET $2",
+            &[&count, &offset],
         )
         .await?;
 
@@ -64,7 +76,8 @@ pub async fn fetch_latest_blocks(
         .into_iter()
         .map(|row| {
             let tx_count = row.try_get("tx_count")?;
-            Ok((Block::from_row(row)?, tx_count))
+            let coinbase_script = row.try_get("coinbase_script")?;
+            Ok((Block::from_row(row)?, tx_count, coinbase_script))
         })
         .collect::<Result<Vec<_>>>()
 }

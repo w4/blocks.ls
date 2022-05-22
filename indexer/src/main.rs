@@ -188,16 +188,12 @@ async fn insert_transaction(
     transaction: &Transaction,
 ) -> Result<i64, Box<dyn std::error::Error>> {
     let query = "
-        WITH inserted AS (
-            INSERT INTO transactions
-            (hash, block_id, version, lock_time, weight, coinbase, replace_by_fee)
-            VALUES ($1, $2, $3, $4, $5, $6, $7)
-            ON CONFLICT DO NOTHING
-            RETURNING id
-        ) SELECT COALESCE(
-            (SELECT id FROM inserted),
-            (SELECT id FROM transactions WHERE hash = $1)
-        ) AS id
+        INSERT INTO transactions
+        (hash, block_id, version, lock_time, weight, coinbase, replace_by_fee)
+        VALUES ($1, $2, $3, $4, $5, $6, $7)
+        ON CONFLICT (hash) DO UPDATE
+            SET block_id = excluded.block_id
+        RETURNING id
     ";
 
     Ok(tx
@@ -223,17 +219,24 @@ async fn insert_transaction_input(
     transaction_id: i64,
     transaction_input: &TxIn,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    let previous_output = select_transaction_output(
-        tx,
-        &transaction_input.previous_output.txid.to_vec(),
-        transaction_input.previous_output.vout as i64,
-    )
-    .await?;
-
     let query = "
         INSERT INTO transaction_inputs
-        (transaction_id, index, previous_output, script)
-        VALUES ($1, $2, $3, $4)
+        (transaction_id, index, sequence, witness, script, previous_output)
+        VALUES (
+            $1,
+            $2,
+            $3,
+            $4,
+            $5,
+            (
+                SELECT transaction_outputs.id
+                FROM transactions
+                INNER JOIN transaction_outputs
+                    ON transactions.id = transaction_outputs.transaction_id
+                WHERE transactions.hash = $6
+                    AND transaction_outputs.index = $7
+            )
+        )
         ON CONFLICT DO NOTHING
     ";
 
@@ -242,8 +245,11 @@ async fn insert_transaction_input(
         &[
             &transaction_id,
             &index,
-            &previous_output,
+            &i64::from(transaction_input.sequence),
+            &transaction_input.witness.to_vec(),
             &transaction_input.script_sig.as_bytes(),
+            &transaction_input.previous_output.txid.to_vec(),
+            &(transaction_input.previous_output.vout as i64),
         ],
     )
     .await?;
@@ -279,31 +285,6 @@ async fn insert_transaction_output(
     .await?;
 
     Ok(())
-}
-
-// TODO: this is a _very_ efficient query involving just two index scans, right now we're inserting
-//  it alongside transaction_outputs, but we need sequential inserts for that to work. maybe we can
-//  just call this query on-demand? or figure out a way to sequentialise inserts - that's quite risky
-//  to our insert speed though.
-async fn select_transaction_output(
-    tx: &tokio_postgres::Transaction<'_>,
-    transaction_hash: &[u8],
-    transaction_index: i64,
-) -> Result<Option<i64>, Box<dyn std::error::Error>> {
-    let query = "
-        SELECT transaction_outputs.id AS output_id
-        FROM transactions
-        INNER JOIN transaction_outputs
-            ON transactions.id = transaction_outputs.transaction_id
-        WHERE transactions.hash = $1
-            AND transaction_outputs.index = $2
-    ";
-
-    let row = tx
-        .query_opt(query, &[&transaction_hash, &transaction_index])
-        .await?;
-
-    Ok(row.map(|v| v.get("output_id")))
 }
 
 #[derive(Parser, Debug)]
