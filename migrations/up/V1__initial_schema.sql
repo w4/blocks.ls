@@ -48,6 +48,7 @@ CREATE TABLE transaction_outputs (
             REFERENCES transactions(id)
 );
 
+CREATE INDEX transaction_outputs_address ON transaction_outputs (address);
 CREATE INDEX transaction_outputs_txid ON transaction_outputs (transaction_id);
 CREATE UNIQUE INDEX transaction_outputs_txid_index ON transaction_outputs (transaction_id, index);
 

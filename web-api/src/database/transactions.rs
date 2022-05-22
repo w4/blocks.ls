@@ -91,7 +91,6 @@ pub async fn fetch_transactions_for_block(
             ) AS outputs
         FROM transactions
         WHERE transactions.block_id = $1
-        GROUP BY transactions.id
         ORDER BY transactions.id ASC
         LIMIT $2 OFFSET $3
     ";
@@ -110,4 +109,49 @@ pub async fn fetch_transactions_for_block(
             .map(Transaction::from_row)
             .collect::<Result<_>>()?,
     ))
+}
+
+pub async fn fetch_transactions_for_address(
+    db: &Connection,
+    address: &str,
+) -> Result<Vec<Transaction>> {
+    let select_query = "
+        SELECT
+	            transactions.*,
+	            (
+	                SELECT JSON_AGG(transaction_inputs)
+	                FROM (
+	                    SELECT ROW_TO_JSON(transaction_outputs) AS previous_output_tx, transaction_inputs.*
+	                    FROM transaction_inputs
+	                    LEFT JOIN transaction_outputs
+	                        ON transaction_outputs.id = transaction_inputs.previous_output
+	                    WHERE transactions.id = transaction_inputs.transaction_id
+	                ) transaction_inputs
+	            ) AS inputs,
+	            (
+	                SELECT JSON_AGG(transaction_outputs.*)
+	                FROM transaction_outputs
+	                WHERE transactions.id = transaction_outputs.transaction_id
+	            ) AS outputs
+	        FROM transactions
+	        WHERE transactions.id IN (
+	        	SELECT transaction_outputs.transaction_id
+                    FROM transaction_outputs
+                    WHERE transaction_outputs.address = $1
+	        	UNION
+	        	SELECT transaction_inputs.transaction_id
+                    FROM transaction_inputs
+                    LEFT JOIN transaction_outputs
+                        ON transaction_outputs.id = transaction_inputs.previous_output
+                    WHERE transaction_outputs.address = $1
+	        )
+            ORDER BY transactions.id DESC
+    ";
+
+    let transactions = db.query(select_query, &[&address]).await?;
+
+    transactions
+        .into_iter()
+        .map(Transaction::from_row)
+        .collect()
 }

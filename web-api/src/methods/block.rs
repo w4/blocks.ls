@@ -71,14 +71,14 @@ pub struct Block {
 
 #[derive(Serialize)]
 pub struct Transaction {
-    hash: String,
-    version: i32,
-    lock_time: i32,
-    weight: i64,
-    coinbase: bool,
-    replace_by_fee: bool,
-    inputs: Vec<TransactionInput>,
-    outputs: Vec<TransactionOutput>,
+    pub hash: String,
+    pub version: i32,
+    pub lock_time: i32,
+    pub weight: i64,
+    pub coinbase: bool,
+    pub replace_by_fee: bool,
+    pub inputs: Vec<TransactionInput>,
+    pub outputs: Vec<TransactionOutput>,
 }
 
 #[derive(Serialize)]
