@@ -49,29 +49,34 @@ pub async fn fetch_latest_blocks(
     count: i64,
     offset: i64,
 ) -> Result<Vec<(Block, TransactionCount, TransactionWeight, Vec<u8>)>> {
+    let query = "
+        SELECT
+            blocks.*,
+            tx.count,
+            tx.weight,
+            (
+                SELECT script
+                FROM transactions
+                INNER JOIN transaction_inputs
+                ON transaction_inputs.transaction_id = transactions.id
+                WHERE transactions.block_id = blocks.id
+                AND transactions.coinbase = true
+                LIMIT 1
+            ) AS coinbase_script
+        FROM blocks
+        LEFT JOIN LATERAL (
+            SELECT
+                SUM(transactions.weight) AS weight,
+                COUNT(transactions.id) AS count
+            FROM transactions
+            WHERE transactions.block_id = blocks.id
+        ) tx ON true
+        ORDER BY blocks.height
+        LIMIT $1 OFFSET $2
+    ";
+
     let blocks = db
-        .query(
-            "SELECT
-               blocks.*,
-               COUNT(transactions.id) AS tx_count,
-               SUM(transactions.weight) AS tx_weight,
-               (
-                 SELECT script
-                 FROM transactions
-                 INNER JOIN transaction_inputs
-                   ON transaction_inputs.transaction_id = transactions.id
-                 WHERE transactions.block_id = blocks.id
-                   AND transactions.coinbase = true
-                 LIMIT 1
-               ) AS coinbase_script
-             FROM blocks
-             LEFT JOIN transactions
-               ON transactions.block_id = blocks.id
-             GROUP BY blocks.id
-             ORDER BY blocks.height DESC
-             LIMIT $1 OFFSET $2",
-            &[&count, &offset],
-        )
+        .query(query, &[&count, &offset])
         .await?;
 
     blocks
@@ -86,13 +91,14 @@ pub async fn fetch_latest_blocks(
 }
 
 pub async fn fetch_block_by_height(db: &Connection, height: i64) -> Result<Option<Block>> {
+    let query = "
+        SELECT *
+        FROM blocks
+        WHERE height = $1
+    ";
+
     let block = db
-        .query_opt(
-            "SELECT *
-         FROM blocks
-         WHERE height = $1",
-            &[&height],
-        )
+        .query_opt(query, &[&height])
         .await?;
 
     Ok(block.map(Block::from_row).transpose()?)
