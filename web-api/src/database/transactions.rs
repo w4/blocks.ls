@@ -1,17 +1,17 @@
 use crate::database::{Connection, Result};
-use futures::StreamExt;
 use serde::de::Error;
 use serde::{Deserialize, Deserializer};
-use tokio::time::Instant;
-use tokio_postgres::types::{Json, ToSql};
-use tokio_postgres::Row;
+use tokio_postgres::{
+    types::{Json, ToSql},
+    Row,
+};
 
 #[derive(Debug)]
 pub struct Transaction {
     pub hash: Vec<u8>,
     pub version: i32,
-    pub lock_time: i32,
     pub weight: i64,
+    pub lock_time: i32,
     pub coinbase: bool,
     pub replace_by_fee: bool,
     pub inputs: Json<Vec<TransactionInput>>,
@@ -23,8 +23,8 @@ impl Transaction {
         Ok(Self {
             hash: row.try_get("hash")?,
             version: row.try_get("version")?,
-            lock_time: row.try_get("lock_time")?,
             weight: row.try_get("weight")?,
+            lock_time: row.try_get("lock_time")?,
             coinbase: row.try_get("coinbase")?,
             replace_by_fee: row.try_get("replace_by_fee")?,
             inputs: row.try_get("inputs")?,
@@ -199,9 +199,32 @@ pub async fn fetch_transactions_for_address(
         .collect()
 }
 
-pub async fn fetch_latest_transactions(db: &Connection, limit: i64) -> Result<Vec<Transaction>> {
+pub struct TransactionWithDetails {
+    pub input_total_value: rust_decimal::Decimal,
+    pub output_total_value: rust_decimal::Decimal,
+    pub transaction: Transaction,
+}
+
+pub async fn fetch_latest_transactions(
+    db: &Connection,
+    limit: i64,
+) -> Result<Vec<TransactionWithDetails>> {
     let select_query = "
-        SELECT *, JSON_BUILD_ARRAY() AS inputs, JSON_BUILD_ARRAY() AS outputs
+        SELECT transactions.*,
+            JSON_BUILD_ARRAY() AS inputs,
+            JSON_BUILD_ARRAY() AS outputs,
+            (
+                SELECT SUM(po.value)
+                FROM transaction_inputs input
+                LEFT JOIN transaction_outputs po
+                    ON po.id = input.previous_output
+                WHERE input.transaction_id = transactions.id
+            ) AS input_total_value,
+            (
+                SELECT SUM(out.value)
+                FROM transaction_outputs out
+                WHERE out.transaction_id = transactions.id
+            ) AS output_total_value
         FROM transactions
         ORDER BY transactions.id DESC
         LIMIT $1
@@ -211,7 +234,17 @@ pub async fn fetch_latest_transactions(db: &Connection, limit: i64) -> Result<Ve
 
     transactions
         .into_iter()
-        .map(Transaction::from_row)
+        .map(|tx| {
+            Ok(TransactionWithDetails {
+                input_total_value: tx
+                    .try_get::<_, Option<_>>("input_total_value")?
+                    .unwrap_or_default(),
+                output_total_value: tx
+                    .try_get::<_, Option<_>>("output_total_value")?
+                    .unwrap_or_default(),
+                transaction: Transaction::from_row(tx)?,
+            })
+        })
         .collect()
 }
 

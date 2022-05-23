@@ -80,7 +80,7 @@
 
                 {#if input.previous_output}
                   <div class="amount">
-                    <code>{(input.previous_output.value / scale).toFixed(8)} BTC</code>
+                    <code>{(input.previous_output.value / scale).toFixed(8).toLocaleString()} BTC</code>
                   </div>
                 {/if}
               </div>
@@ -123,7 +123,7 @@
               </div>
 
               <div class="amount">
-                <code>{(output.value / scale).toFixed(8)} BTC</code>
+                <code>{(output.value / scale).toFixed(8).toLocaleString()} BTC</code>
               </div>
             </div>
           </div>

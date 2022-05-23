@@ -7,7 +7,9 @@ edition = "2021"
 
 [dependencies]
 axum = "0.5"
+bitcoin = "0.28"
 deadpool-postgres = "0.10"
+rust_decimal = { version = "1.23", features = ["db-tokio-postgres"] }
 chrono = { version = "0.4", features = ["serde"] }
 clap = { version = "3.1", features = ["derive"] }
 futures = "0.3"

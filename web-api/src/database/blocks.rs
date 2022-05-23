@@ -1,5 +1,5 @@
 use crate::database::{Connection, Result};
-use chrono::{DateTime, NaiveDateTime, Utc};
+use chrono::NaiveDateTime;
 use tokio_postgres::Row;
 
 #[derive(Debug)]
@@ -42,17 +42,19 @@ pub async fn fetch_height(db: &Connection) -> Result<u64> {
 }
 
 pub type TransactionCount = i64;
+pub type TransactionWeight = rust_decimal::Decimal;
 
 pub async fn fetch_latest_blocks(
     db: &Connection,
     count: i64,
     offset: i64,
-) -> Result<Vec<(Block, TransactionCount, Vec<u8>)>> {
+) -> Result<Vec<(Block, TransactionCount, TransactionWeight, Vec<u8>)>> {
     let blocks = db
         .query(
             "SELECT
                blocks.*,
                COUNT(transactions.id) AS tx_count,
+               SUM(transactions.weight) AS tx_weight,
                (
                  SELECT script
                  FROM transactions
@@ -76,8 +78,9 @@ pub async fn fetch_latest_blocks(
         .into_iter()
         .map(|row| {
             let tx_count = row.try_get("tx_count")?;
+            let tx_weight = row.try_get("tx_weight")?;
             let coinbase_script = row.try_get("coinbase_script")?;
-            Ok((Block::from_row(row)?, tx_count, coinbase_script))
+            Ok((Block::from_row(row)?, tx_count, tx_weight, coinbase_script))
         })
         .collect::<Result<Vec<_>>>()
 }

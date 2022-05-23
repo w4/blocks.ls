@@ -29,10 +29,9 @@
             </span>
           </td>
           <td>{block.mined_by?.pool || "Unknown"}</td>
-          <td>{block.tx_count}</td>
-          <td>{block.bits}</td>
-          <!-- todo: this isn't really size -->
-          <td>{block.weight}</td>
+          <td>{block.tx_count.toLocaleString()}</td>
+          <td>{(block.size / 1000).toLocaleString()}</td>
+          <td>{(block.weight / 1000).toLocaleString()}</td>
         </tr>
       {/each}
     </tbody>

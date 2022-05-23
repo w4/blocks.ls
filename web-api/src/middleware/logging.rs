@@ -1,6 +1,5 @@
 //! Logs each and every request out in a format similar to that of Apache's logs.
 
-use axum::handler::Handler;
 use axum::{
     extract::{self, FromRequest, RequestParts},
     http::{Request, Response},

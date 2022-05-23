@@ -1,8 +1,9 @@
 use crate::Database;
 use axum::extract::{Path, Query};
 use axum::{Extension, Json};
+use bitcoin::blockdata::constants::WITNESS_SCALE_FACTOR;
+use bitcoin::VarInt;
 use chrono::NaiveDateTime;
-use futures::StreamExt;
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize)]
@@ -26,7 +27,9 @@ pub struct BlockList {
     bits: i32,
     nonce: u32,
     difficulty: i64,
+    weight: u64,
     tx_count: i64,
+    size: i32,
 }
 
 #[derive(Deserialize)]
@@ -57,7 +60,7 @@ pub async fn list(
     Json(
         blocks
             .into_iter()
-            .map(|(mut block, tx_count, coinbase_script)| {
+            .map(|(mut block, tx_count, tx_weight, coinbase_script)| {
                 // TODO: do this on insert
                 block.hash.reverse();
 
@@ -67,9 +70,13 @@ pub async fn list(
                     height: block.height,
                     version: block.version,
                     timestamp: block.timestamp,
+                    size: block.size,
                     bits: block.bits,
                     nonce: block.nonce,
                     difficulty: block.difficulty,
+                    weight: (u64::try_from(WITNESS_SCALE_FACTOR).unwrap()
+                        * u64::try_from(VarInt(u64::try_from(tx_count).unwrap()).len()).unwrap())
+                        + u64::try_from(tx_weight.mantissa()).unwrap(),
                     tx_count,
                 }
             })
@@ -103,8 +110,8 @@ pub struct Block {
 pub struct Transaction {
     pub hash: String,
     pub version: i32,
-    pub lock_time: i32,
     pub weight: i64,
+    pub lock_time: i32,
     pub coinbase: bool,
     pub replace_by_fee: bool,
     #[serde(skip_serializing_if = "Vec::is_empty")]
@@ -120,8 +127,8 @@ impl From<crate::database::transactions::Transaction> for Transaction {
         Transaction {
             hash: hex::encode(tx.hash),
             version: tx.version,
-            lock_time: tx.lock_time,
             weight: tx.weight,
+            lock_time: tx.lock_time,
             coinbase: tx.coinbase,
             replace_by_fee: tx.replace_by_fee,
             inputs: tx.inputs.0.into_iter().map(Into::into).collect(),

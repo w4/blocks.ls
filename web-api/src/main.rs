@@ -5,7 +5,6 @@ mod middleware;
 
 use crate::config::Config;
 use crate::database::Database;
-use axum::routing::get;
 use axum::{Extension, Router};
 use clap::Parser;
 use tower::ServiceBuilder;

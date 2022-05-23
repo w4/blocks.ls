@@ -46,7 +46,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let height = bitcoin_rpc.get_block_count().await?;
     eprintln!("Current block height: {}", height);
 
-    let start = 737000;
+    let start = args.start;
 
     let (tx, mut rx) = tokio::sync::mpsc::channel::<(u64, BlockHash, Block)>(200);
 
@@ -295,6 +295,8 @@ pub struct Args {
     pub verbose: usize,
     #[clap(short, long, parse(try_from_str = Config::from_toml_path))]
     pub config: Config,
+    /// Block height to start at
+    pub start: u64,
 }
 
 impl Args {
