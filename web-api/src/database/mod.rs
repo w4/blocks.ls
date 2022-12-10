@@ -28,6 +28,7 @@ impl From<DatabaseConfig> for Config {
         c.user = Some(config.user);
         c.password = Some(config.password);
         c.host = Some(config.host);
+        c.port = Some(config.port);
         c.dbname = Some(config.database);
         c.manager = Some(ManagerConfig {
             recycling_method: RecyclingMethod::Verified,
