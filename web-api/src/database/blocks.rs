@@ -52,8 +52,8 @@ pub async fn fetch_latest_blocks(
     let query = "
         SELECT
             blocks.*,
-            tx.count,
-            tx.weight,
+            tx.count AS tx_count,
+            tx.weight AS tx_weight,
             (
                 SELECT script
                 FROM transactions
@@ -71,7 +71,7 @@ pub async fn fetch_latest_blocks(
             FROM transactions
             WHERE transactions.block_id = blocks.id
         ) tx ON true
-        ORDER BY blocks.height
+        ORDER BY blocks.height DESC
         LIMIT $1 OFFSET $2
     ";
 
