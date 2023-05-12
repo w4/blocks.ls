@@ -27,12 +27,14 @@
         <a href="/tx/{transaction.hash}">{transaction.hash}</a>
       </h3>
 
-      <button
-        on:click={() => (showingMoreInfo = !showingMoreInfo)}
-        class="!text-white cursor-pointer text-base md:text-lg"
-      >
-        {showingMoreInfo ? "-" : "+"}
-      </button>
+      {#if browser}
+        <button
+          on:click={() => (showingMoreInfo = !showingMoreInfo)}
+          class="!text-white cursor-pointer text-base md:text-lg"
+        >
+          {showingMoreInfo ? "-" : "+"}
+        </button>
+      {/if}
     </div>
   {/if}
 
@@ -80,7 +82,9 @@
 
                 {#if input.previous_output}
                   <div class="amount">
-                    <code>{(input.previous_output.value / scale).toFixed(8).toLocaleString()} BTC</code>
+                    <code
+                      >{(input.previous_output.value / scale).toFixed(8).toLocaleString()} BTC</code
+                    >
                   </div>
                 {/if}
               </div>

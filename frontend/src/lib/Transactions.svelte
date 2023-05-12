@@ -21,11 +21,22 @@
       <tr>
         <th><a href={`/tx/${txn.hash}`}><code>{txn.hash}</code></a></th>
         <td><code>{(txn.output_total_value / Math.pow(10, 8)).toFixed(8)} BTC</code></td>
-        <td><code>{Math.ceil((txn.weight + WITNESS_SCALE_FACTOR - 1) / WITNESS_SCALE_FACTOR).toLocaleString()} vB</code></td>
+        <td
+          ><code
+            >{Math.ceil(
+              (txn.weight + WITNESS_SCALE_FACTOR - 1) / WITNESS_SCALE_FACTOR,
+            ).toLocaleString()} vB</code
+          ></td
+        >
         <td>
           <code>
             {#if txn.input_total_value > 0}
-              {((txn.input_total_value - txn.output_total_value) / ((txn.weight + WITNESS_SCALE_FACTOR - 1) / WITNESS_SCALE_FACTOR)).toFixed(2).toLocaleString()}
+              {(
+                (txn.input_total_value - txn.output_total_value) /
+                ((txn.weight + WITNESS_SCALE_FACTOR - 1) / WITNESS_SCALE_FACTOR)
+              )
+                .toFixed(2)
+                .toLocaleString()}
             {:else}
               0
             {/if}

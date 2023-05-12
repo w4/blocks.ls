@@ -6,7 +6,7 @@ mod middleware;
 use crate::config::Config;
 use crate::database::Database;
 use axum::{Extension, Router};
-use clap::Parser;
+use clap::{ArgAction, Parser};
 use tower::ServiceBuilder;
 use tracing::Level;
 
@@ -36,12 +36,12 @@ async fn main() {
 }
 
 #[derive(Parser, Debug)]
-#[clap(version, about, long_about = None)]
+#[command(version, about, long_about = None)]
 pub struct Args {
     /// Logging verbosity
-    #[clap(short, long, parse(from_occurrences))]
-    pub verbose: usize,
-    #[clap(short, long, parse(try_from_str = Config::from_toml_path))]
+    #[arg(short, long, action = ArgAction::Count)]
+    pub verbose: u8,
+    #[arg(short, long, value_parser = Config::from_toml_path)]
     pub config: Config,
 }
 

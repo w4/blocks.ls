@@ -1,6 +1,6 @@
 <script context="module">
   export async function load({ fetch, params, url }) {
-    let res = await fetch(`http://localhost:3001/address/${params.address}`);
+    let res = await fetch(`http://127.0.0.1:3001/address/${params.address}`);
 
     if (res.ok) {
       return {

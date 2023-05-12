@@ -75,9 +75,7 @@ pub async fn fetch_latest_blocks(
         LIMIT $1 OFFSET $2
     ";
 
-    let blocks = db
-        .query(query, &[&count, &offset])
-        .await?;
+    let blocks = db.query(query, &[&count, &offset]).await?;
 
     blocks
         .into_iter()
@@ -97,9 +95,7 @@ pub async fn fetch_block_by_height(db: &Connection, height: i64) -> Result<Optio
         WHERE height = $1
     ";
 
-    let block = db
-        .query_opt(query, &[&height])
-        .await?;
+    let block = db.query_opt(query, &[&height]).await?;
 
-    Ok(block.map(Block::from_row).transpose()?)
+    block.map(Block::from_row).transpose()
 }

@@ -3,7 +3,7 @@
     const offset = Math.max(0, Number.parseInt(url.searchParams.get("offset") || 0));
     const limit = 20;
 
-    let res = await fetch(`http://localhost:3001/block?limit=${limit}&offset=${offset}`);
+    let res = await fetch(`http://127.0.0.1:3001/block?limit=${limit}&offset=${offset}`);
 
     if (res.ok) {
       return {

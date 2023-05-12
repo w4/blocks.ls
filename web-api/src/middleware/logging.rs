@@ -1,8 +1,9 @@
 //! Logs each and every request out in a format similar to that of Apache's logs.
 
 use axum::{
-    extract::{self, FromRequest, RequestParts},
+    extract,
     http::{Request, Response},
+    RequestExt,
 };
 use futures::future::BoxFuture;
 use std::{
@@ -36,7 +37,7 @@ where
         self.0.poll_ready(cx)
     }
 
-    fn call(&mut self, req: Request<ReqBody>) -> Self::Future {
+    fn call(&mut self, mut req: Request<ReqBody>) -> Self::Future {
         // best practice is to clone the inner service like this
         // see https://github.com/tower-rs/tower/issues/547 for details
         let clone = self.0.clone();
@@ -51,13 +52,13 @@ where
             let method = req.method().clone();
             let uri = req.uri().path().to_string();
 
-            let mut req = RequestParts::new(req);
-            let socket_addr = extract::ConnectInfo::<std::net::SocketAddr>::from_request(&mut req)
+            let socket_addr = req
+                .extract_parts::<extract::ConnectInfo::<std::net::SocketAddr>>()
                 .await
                 .map_or_else(|_| "0.0.0.0:0".parse().unwrap(), |v| v.0);
 
             // this is infallible because of the type of S::Error
-            let response = inner.call(req.try_into_request().unwrap()).await?;
+            let response = inner.call(req).await?;
 
             if response.status().is_server_error() {
                 error!(

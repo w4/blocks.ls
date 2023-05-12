@@ -1,6 +1,6 @@
 <script context="module">
   export async function load({ fetch, params, url }) {
-    let res = await fetch(`http://localhost:3001/tx/${params.id}`);
+    let res = await fetch(`http://127.0.0.1:3001/tx/${params.id}`);
 
     if (res.ok) {
       return {
@@ -18,8 +18,9 @@
 
 <script>
   import Transaction from "$lib/Transaction.svelte";
+  import { browser } from "$app/env";
 
-  let showingMoreInfo = false;
+  export let showingMoreInfo = !browser; // default to showing more info for non-js users
 
   export let tx;
 </script>
@@ -51,12 +52,14 @@
   <section class="flex !bg-transparent mb-2">
     <div class="flex-grow" />
 
-    <button
-      on:click={() => (showingMoreInfo = !showingMoreInfo)}
-      class="text-slate-200 text-base rounded-lg bg-gray-800 p-2 cursor-pointer"
-    >
-      {showingMoreInfo ? "- Less Info" : "+ More Info"}
-    </button>
+    {#if browser}
+      <button
+        on:click={() => (showingMoreInfo = !showingMoreInfo)}
+        class="text-slate-200 text-base rounded-lg bg-gray-800 p-2 cursor-pointer"
+      >
+        {showingMoreInfo ? "- Less Info" : "+ More Info"}
+      </button>
+    {/if}
   </section>
 
   <Transaction attachAnchor class="!mt-0" transaction={tx} {showingMoreInfo} showTxHeader={false} />

@@ -2,7 +2,7 @@
   export async function load({ fetch, params, url }) {
     const offset = Math.max(0, Number.parseInt(url.searchParams.get("offset") || "0"));
 
-    let res = await fetch(`http://localhost:3001/block/${params.id}?offset=${offset}`);
+    let res = await fetch(`http://127.0.0.1:3001/block/${params.id}?offset=${offset}`);
 
     if (res.ok) {
       const block = await res.json();
@@ -65,14 +65,16 @@
     <Transaction {transaction} />
   {/each}
 
-  <div class="pagination">
-    {#each { length: Math.ceil(block.tx_count / 30) } as _, i}
-      <a
-        href="/block/{block.height}{i === 0 ? '' : `?offset=${i * 30}`}"
-        class:active={i === currentPage}>{i + 1}</a
-      >
-    {/each}
-  </div>
+  {#if Math.ceil(block.tx_count / 30) > 1}
+    <div class="pagination">
+      {#each { length: Math.ceil(block.tx_count / 30) } as _, i}
+        <a
+          href="/block/{block.height}{i === 0 ? '' : `?offset=${i * 30}`}"
+          class:active={i === currentPage}>{i + 1}</a
+        >
+      {/each}
+    </div>
+  {/if}
 </div>
 
 <style lang="scss">

@@ -1,8 +1,8 @@
 <script context="module">
   export async function load({ fetch }) {
     const [blocks, txs] = await Promise.all([
-      fetch("http://localhost:3001/block?limit=5"),
-      fetch("http://localhost:3001/tx?limit=5"),
+      fetch("http://127.0.0.1:3001/block?limit=5"),
+      fetch("http://127.0.0.1:3001/tx?limit=5"),
     ]);
 
     if (txs.ok && blocks.ok) {

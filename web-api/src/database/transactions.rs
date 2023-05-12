@@ -115,10 +115,11 @@ pub async fn fetch_transactions_for_block(
                         ROW_TO_JSON(po) AS previous_output_item,
                         transaction_inputs.*
                     FROM transaction_inputs
-                    LEFT JOIN transaction_outputs po
-                        ON po.id = transaction_inputs.previous_output
                     LEFT JOIN transactions pot
-                        ON pot.id = po.transaction_id
+                        ON pot.hash = transaction_inputs.previous_output_transaction
+                    LEFT JOIN transaction_outputs po
+                    	ON po.transaction_id = pot.id
+                    	AND po.index = transaction_inputs.previous_output_index
                     WHERE transactions.id = transaction_inputs.transaction_id
                 ) transaction_inputs
             ) AS inputs,
@@ -164,10 +165,11 @@ pub async fn fetch_transactions_for_address(
 	                        ROW_TO_JSON(po) AS previous_output_item,
 	                        transaction_inputs.*
 	                    FROM transaction_inputs
-	                    LEFT JOIN transaction_outputs po
-	                        ON po.id = transaction_inputs.previous_output
                         LEFT JOIN transactions pot
-                            ON pot.id = po.transaction_id
+                            ON pot.hash = transaction_inputs.previous_output_transaction
+                        LEFT JOIN transaction_outputs po
+                    	    ON po.transaction_id = pot.id
+                    	    AND po.index = transaction_inputs.previous_output_index
 	                    WHERE transactions.id = transaction_inputs.transaction_id
 	                ) transaction_inputs
 	            ) AS inputs,
@@ -184,9 +186,12 @@ pub async fn fetch_transactions_for_address(
 	        	UNION
 	        	SELECT transaction_inputs.transaction_id
                     FROM transaction_inputs
-                    LEFT JOIN transaction_outputs
-                        ON transaction_outputs.id = transaction_inputs.previous_output
-                    WHERE transaction_outputs.address = $1
+                    LEFT JOIN transactions pot
+                        ON pot.hash = transaction_inputs.previous_output_transaction
+                    LEFT JOIN transaction_outputs po
+                    	ON po.transaction_id = pot.id
+                    	AND po.index = transaction_inputs.previous_output_index
+                    WHERE po.address = $1
 	        )
             ORDER BY transactions.id DESC
     ";
@@ -216,8 +221,11 @@ pub async fn fetch_latest_transactions(
             (
                 SELECT SUM(po.value)
                 FROM transaction_inputs input
+                LEFT JOIN transactions pot
+                    ON pot.hash = input.previous_output_transaction
                 LEFT JOIN transaction_outputs po
-                    ON po.id = input.previous_output
+                    ON po.transaction_id = pot.id
+                    AND po.index = input.previous_output_index
                 WHERE input.transaction_id = transactions.id
             ) AS input_total_value,
             (
@@ -263,10 +271,11 @@ pub async fn fetch_transaction_by_hash(
 	                        ROW_TO_JSON(po) AS previous_output_item,
 	                        transaction_inputs.*
 	                    FROM transaction_inputs
-	                    LEFT JOIN transaction_outputs po
-	                        ON po.id = transaction_inputs.previous_output
-                        LEFT JOIN transactions pot
-                            ON pot.id = po.transaction_id
+	                    LEFT JOIN transactions pot
+                            ON pot.hash = transaction_inputs.previous_output_transaction
+                        LEFT JOIN transaction_outputs po
+                            ON po.transaction_id = pot.id
+                            AND po.index = transaction_inputs.previous_output_index
 	                    WHERE transactions.id = transaction_inputs.transaction_id
 	                ) transaction_inputs
 	            ) AS inputs,

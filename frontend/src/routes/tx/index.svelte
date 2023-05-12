@@ -1,6 +1,6 @@
 <script context="module">
   export async function load({ fetch }) {
-    const txs = await fetch("http://localhost:3001/tx?limit=20");
+    const txs = await fetch("http://127.0.0.1:3001/tx?limit=20");
 
     if (txs.ok) {
       return {

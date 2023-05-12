@@ -58,16 +58,13 @@ CREATE TABLE transaction_inputs (
     index BIGINT NOT NULL,
     sequence BIGINT NOT NULL,
     witness BYTEA[] NOT NULL,
-    previous_output BIGINT,
+    previous_output_transaction BYTEA,
+    previous_output_index BIGINT,
     script BYTEA NOT NULL,
     CONSTRAINT fk_transaction_id
         FOREIGN KEY(transaction_id)
-            REFERENCES transactions,
-    CONSTRAINT fk_previous_output
-        FOREIGN KEY(previous_output)
-            REFERENCES transaction_outputs(id)
+            REFERENCES transactions
 );
 
 CREATE INDEX transaction_inputs_txid ON transaction_inputs (transaction_id);
 CREATE UNIQUE INDEX transaction_inputs_txid_index ON transaction_inputs (transaction_id, index);
-CREATE UNIQUE INDEX transaction_inputs_previous_output ON transaction_inputs (previous_output);

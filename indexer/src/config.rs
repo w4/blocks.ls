@@ -1,6 +1,6 @@
 use serde::Deserialize;
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Debug, Clone)]
 #[serde(rename_all = "kebab-case")]
 pub struct Config {
     pub bitcoin_rpc: BitcoinRpc,
@@ -9,13 +9,13 @@ pub struct Config {
 
 impl Config {
     pub fn from_toml_path(path: &str) -> Result<Config, std::io::Error> {
-        let contents = std::fs::read(path)?;
-        toml::from_slice(&contents)
+        let contents = std::fs::read_to_string(path)?;
+        toml::from_str(&contents)
             .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))
     }
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Debug, Clone)]
 #[serde(rename_all = "kebab-case")]
 pub struct BitcoinRpc {
     pub address: String,
@@ -23,7 +23,7 @@ pub struct BitcoinRpc {
     pub password: String,
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Debug, Clone)]
 #[serde(rename_all = "kebab-case")]
 pub struct DatabaseConfig {
     pub user: String,
